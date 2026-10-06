@@ -1,0 +1,10 @@
+python-dotenv
+langchain
+langchain-core
+langchain-google-genai
+langgraph
+langgraph-prebuilt
+mem0ai
+google-genai
+requests
+qdrant-client
