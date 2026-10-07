@@ -1,3 +1,8 @@
+import os
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 import httpx
 import jwt
@@ -5,9 +10,9 @@ import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2AuthorizationCodeBearer
 
-KEYCLOAK_URL = "https://auth.sivaxi.com"
-KEYCLOAK_REALM = "ai"
-KEYCLOAK_CLIENT_ID = "sivaxi-ai"
+KEYCLOAK_URL = os.getenv("KEYCLOAK_URL")
+KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM")
+KEYCLOAK_CLIENT_ID = os.getenv("KEYCLOAK_CLIENT_ID")
 
 KEYCLOAK_ISSUER = (
     f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}"
@@ -102,14 +107,6 @@ def get_current_user(
             },
         )
 
-        print("\n========== KEYCLOAK TOKEN ==========")
-        print("SUB:", payload.get("sub"))
-        print("ISS:", payload.get("iss"))
-        print("AZP:", payload.get("azp"))
-        print("AUD:", payload.get("aud"))
-        print("EXP:", payload.get("exp"))
-        print("====================================\n")
-
         # Verify that the token was issued for our application
         if payload.get("azp") != KEYCLOAK_CLIENT_ID:
             raise HTTPException(
@@ -138,10 +135,6 @@ def get_current_user(
         )
 
     except jwt.InvalidTokenError as e:
-        print("\n========== JWT ERROR ==========")
-        print(type(e).__name__)
-        print(str(e))
-        print("===============================\n")
 
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -150,10 +143,6 @@ def get_current_user(
         )
 
     except httpx.HTTPError as e:
-        print("\n========== KEYCLOAK HTTP ERROR ==========")
-        print(type(e).__name__)
-        print(str(e))
-        print("==========================================\n")
 
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

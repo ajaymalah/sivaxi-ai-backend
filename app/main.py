@@ -21,6 +21,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:4200",
+        "https://vixi.sivaxi.com"
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -31,7 +32,7 @@ create_tables()
 app.include_router(chat_router)
 app.include_router(project_router)
 
-@app.get("/")
+@app.get("/ping")
 def root():
     return {
         "message": "Data Intellijence API is running",

@@ -1,54 +1,10 @@
 services:
-  searxng:
-    image: searxng/searxng:latest
-    container_name: sivaxi-searxng
-    restart: unless-stopped
-
+  sivaxi-ai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ghcr.io/sivaxi-org/sivaxi-ai:latest
     ports:
-      - "8080:8080"
-
-    volumes:
-      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
-
+      - "10000:10000"
     environment:
-      - SEARXNG_BASE_URL=http://localhost:8080/
-
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "wget -q --spider http://localhost:8080/ || exit 1"
-        ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
-  qdrant:
-    image: qdrant/qdrant:latest
-    container_name: sivaxi-qdrant
-    restart: unless-stopped
-
-    ports:
-      - "6333:6333"
-      - "6334:6334"
-
-    volumes:
-      - qdrant_data:/qdrant/storage
-
-  postgres:
-    image: postgres:17
-    container_name: data-intellijence-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: data_intellijence
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-volumes:
-  qdrant_data:
-  postgres_data:
+      PORT: 10000

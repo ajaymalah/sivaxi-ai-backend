@@ -1,3 +1,9 @@
+import os
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from dataclasses import dataclass
 from typing import TypedDict, Annotated
 
@@ -16,9 +22,16 @@ from app.core.tools.search_web import search_web
 from app.core.tools.block_user import block_user
 
 from app.core.llms.gemini_llm import GeminiLLM
-from app.core.constants.constants import ADMIN_SYSTEM_PROMPT, DEFAULT_SYSTEM_PROMPT, PORTFOLIO_SYSTEM_PROMPT
+from app.core.constants.constants import (
+    ADMIN_SYSTEM_PROMPT,
+    DEFAULT_SYSTEM_PROMPT,
+    PORTFOLIO_SYSTEM_PROMPT,
+)
 
-DB_URI = "postgresql://postgres:postgres@localhost:5432/data_intellijence"
+DB_URI = os.getenv("DATABASE_URL")
+
+if not DB_URI:
+    raise RuntimeError("DATABASE_URL is not configured")
 
 
 @dataclass
@@ -42,6 +55,10 @@ class AppLangGraph:
 
     def __init__(self):
 
+        # ========================================================
+        # LLM
+        # ========================================================
+
         gemini = GeminiLLM()
 
         self.llm = gemini.bind_tools([
@@ -53,12 +70,23 @@ class AppLangGraph:
 
         self.title_llm = GeminiLLM()
 
+        # ========================================================
+        # GRAPH
+        # ========================================================
+
         self.lang_graph = StateGraph(
             LangGraphState
         )
 
         self.add_nodes()
         self.add_edges()
+
+        # ========================================================
+        # POSTGRES CHECKPOINTER
+        #
+        # Created ONCE for this AppLangGraph instance.
+        # Do NOT create AppLangGraph per request.
+        # ========================================================
 
         self.checkpointer_context = (
             PostgresSaver.from_conn_string(
@@ -70,11 +98,33 @@ class AppLangGraph:
             self.checkpointer_context.__enter__()
         )
 
+        # Run setup once when the application starts.
         self.checkpointer.setup()
+
+        # ========================================================
+        # COMPILE GRAPH
+        # ========================================================
 
         self.graph = self.lang_graph.compile(
             checkpointer=self.checkpointer
         )
+
+    # ============================================================
+    # CLOSE
+    # ============================================================
+
+    def close(self):
+
+        if self.checkpointer_context is not None:
+
+            self.checkpointer_context.__exit__(
+                None,
+                None,
+                None,
+            )
+
+            self.checkpointer_context = None
+            self.checkpointer = None
 
     # ============================================================
     # NODES
@@ -127,16 +177,19 @@ class AppLangGraph:
     # ============================================================
 
     def agent(
-            self,
-            state: LangGraphState,
-            runtime
+        self,
+        state: LangGraphState,
+        runtime,
     ):
+
         iterations = state.get(
             "iterations",
-            0
+            0,
         )
 
-        context = self.build_context(state)
+        context = self.build_context(
+            state
+        )
 
         system_prompt = self.get_system_prompt(
             runtime.context.roles
@@ -144,12 +197,12 @@ class AppLangGraph:
 
         response = self.llm.invoke(
             context,
-            system_prompt=system_prompt
+            system_prompt=system_prompt,
         )
 
         return {
             "messages": [response],
-            "iterations": iterations + 1
+            "iterations": iterations + 1,
         }
 
     # ============================================================
@@ -189,44 +242,6 @@ class AppLangGraph:
                 first_human_index:
             ]
 
-        print("\n========== CONTEXT ==========")
-
-        print(
-            "TOTAL MESSAGES:",
-            len(messages),
-        )
-
-        print(
-            "MESSAGES SENT TO GEMINI:",
-            len(recent_messages),
-        )
-
-        for i, message in enumerate(
-            recent_messages
-        ):
-
-            content = message.content
-
-            if not isinstance(
-                content,
-                str,
-            ):
-                content = str(content)
-
-            print(
-                i,
-                message.type,
-                content[:100],
-                "TOOL_CALLS:",
-                getattr(
-                    message,
-                    "tool_calls",
-                    None,
-                ),
-            )
-
-        print("=============================\n")
-
         return recent_messages
 
     # ============================================================
@@ -243,17 +258,14 @@ class AppLangGraph:
             0,
         )
 
-        # Safety limit
         if iterations >= 10:
             return "end"
 
         last_message = state["messages"][-1]
 
-        # Agent requested a tool
         if last_message.tool_calls:
             return "tools"
 
-        # Normal answer → finish
         return "end"
 
     # ============================================================
@@ -276,32 +288,6 @@ class AppLangGraph:
             }
         }
 
-        print("\n==============================")
-        print("CHAT")
-        print(
-            "GRAPH INSTANCE:",
-            id(self),
-        )
-        print(
-            "THREAD ID:",
-            chat_id,
-        )
-        print(
-            "USERNAME:",
-            username,
-        )
-        print(
-            "ROLES:",
-            roles,
-        )
-
-        before = self.graph.get_state(
-            config
-        )
-
-        print("BEFORE STATE:")
-        print(before.values)
-
         result = self.graph.invoke(
             {
                 "messages": [
@@ -321,15 +307,6 @@ class AppLangGraph:
                 project_id=project_id,
             ),
         )
-
-        after = self.graph.get_state(
-            config
-        )
-
-        print("AFTER STATE:")
-        print(after.values)
-
-        print("==============================\n")
 
         last_message = result["messages"][-1]
 
@@ -371,10 +348,7 @@ User message:
 
         content = response.content
 
-        if isinstance(
-            content,
-            list,
-        ):
+        if isinstance(content, list):
 
             text = ""
 
@@ -390,9 +364,13 @@ User message:
 
         return content.strip()
 
+    # ============================================================
+    # SYSTEM PROMPT
+    # ============================================================
+
     def get_system_prompt(
-            self,
-            roles: list[str]
+        self,
+        roles: list[str],
     ) -> str:
 
         if "admin" in roles:

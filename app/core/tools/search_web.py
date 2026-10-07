@@ -1,3 +1,8 @@
+from dotenv import load_dotenv
+
+load_dotenv()
+
+import os
 
 from langchain_core.tools import tool
 import requests
@@ -9,7 +14,7 @@ def search_web(query: str):
 
     try:
         response = requests.get(
-            "http://localhost:8080/search",
+            os.getenv("SEARXNG_URL"),
             params={
                 "q": query,
                 "format": "json"
