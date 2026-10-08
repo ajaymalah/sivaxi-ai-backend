@@ -33,6 +33,12 @@ DB_URI = os.getenv("DATABASE_URL")
 if not DB_URI:
     raise RuntimeError("DATABASE_URL is not configured")
 
+DB_URI = DB_URI.replace(
+    "postgresql+psycopg://",
+    "postgresql://",
+    1,
+)
+
 
 @dataclass
 class GraphContext:

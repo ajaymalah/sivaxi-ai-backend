@@ -5,6 +5,9 @@ from sqlalchemy.orm import Session
 
 from app.core.db.database import get_db
 from app.core.security.security import get_current_user
+from app.core.langgraph.langgraph import AppLangGraph
+from app.core.dependencies import get_app_lang_graph
+
 from app.controllers.chat.dto.chat import (
     ChatRequest,
     ChatResponse,
@@ -14,9 +17,9 @@ from app.controllers.chat.dto.chat import (
     StartChatResponse,
     SendMessageResponse,
 )
+
 from app.models.message import Message
 from app.services.chat_service import ChatService
-from app.core.langgraph.langgraph import AppLangGraph
 
 
 router = APIRouter(
@@ -38,8 +41,12 @@ def start_chat(
     request: ChatRequest,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
+    app_lang_graph: AppLangGraph = Depends(get_app_lang_graph),
 ):
-    service = ChatService(db)
+    service = ChatService(
+        db=db,
+        app_lang_graph=app_lang_graph,
+    )
 
     # 1. Create chat with optional project
     chat = service.create_chat(
@@ -56,8 +63,6 @@ def start_chat(
         )
 
     # 2. Run AI + generate title
-    app_lang_graph = AppLangGraph()
-
     title = app_lang_graph.generate_title(
         request.message
     )
@@ -135,8 +140,12 @@ def send_message(
     request: ChatRequest,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
+    app_lang_graph: AppLangGraph = Depends(get_app_lang_graph),
 ):
-    service = ChatService(db)
+    service = ChatService(
+        db=db,
+        app_lang_graph=app_lang_graph,
+    )
 
     # 1. Verify chat belongs to current user
     chat = service.get_chat(
@@ -165,8 +174,6 @@ def send_message(
     db.refresh(user_message)
 
     # 3. Run Vixi
-    app_lang_graph = AppLangGraph()
-
     response = app_lang_graph.chat(
         user_id=current_user["sub"],
         username=current_user.get(
